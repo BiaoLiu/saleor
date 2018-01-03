@@ -47,9 +47,14 @@ if os.environ.get('REDIS_URL'):
         'BACKEND': 'django_redis.cache.RedisCache',
         'LOCATION': os.environ.get('REDIS_URL')}
 
+# DATABASES = {
+#     'default': dj_database_url.config(
+#         default='postgres://postgres:liubiao123456@localhost:5432/saleor',
+#         conn_max_age=600)}
+
 DATABASES = {
     'default': dj_database_url.config(
-        default='postgres://postgres:liubiao123456@localhost:5432/saleor',
+        default='postgres://saleor:saleor@localhost:5432/saleor',
         conn_max_age=600)}
 
 

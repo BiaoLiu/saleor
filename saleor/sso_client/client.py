@@ -9,7 +9,6 @@ from django.middleware.csrf import rotate_token
 from django.views.generic import View
 from itsdangerous import URLSafeTimedSerializer
 from webservices.sync import SyncConsumer
-
 from urllib.parse import urlparse, urlunparse, urljoin, urlencode
 
 from saleor.utils.response import res_code
@@ -25,6 +24,7 @@ class LoginView(View):
         next = urlparse(request.META.get('HTTP_REFERER', '/'))
         next = urlunparse(('', '', next[2], next[3], next[4], next[5]))
         query = urlencode([('next', next)])
+        # 设定sso登录成功后回调地址 http://127.0.0.1:8015/auth/authenticate/?next=/
         redirect_to = urlunparse((scheme, netloc, path, '', query, ''))
         request_token = self.client.get_request_token(redirect_to)
         host = urljoin(self.client.server_url, 'authorize/')
@@ -48,54 +48,49 @@ class LoginView(View):
         return next
 
 
-class RegisterView(LoginView):
-    def get(self, request: WSGIRequest):
-        redirect_to = request.META.get('HTTP_REFERER', '')
-        if not redirect_to:
-            scheme = 'https' if request.is_secure() else 'http'
-            netloc = request.get_host()
-            redirect_to = urlunparse((scheme, netloc, '/', '', '', ''))
-        host = settings.SSO_REGISTER
-        url = '%s?%s' % (host, urlencode([('next', redirect_to)]))
-        return HttpResponseRedirect(url)
-
-
 class AuthenticateView(LoginView):
-    client = None
-
     def get(self, request):
         raw_access_token = request.GET['access_token']
-        access_token = URLSafeTimedSerializer(self.client.private_key).loads(raw_access_token)
-        is_success, user = self.client.get_user(access_token)
-        # user.backend = self.client.backend
+        payload = URLSafeTimedSerializer(self.client.private_key).loads(raw_access_token)
+        payload.get('sid')
+        is_success, user = self.client.get_user(payload)
         if hasattr(request, 'user'):
             request.user = user
 
         next = self.get_next()
         response = HttpResponseRedirect(next)
         response.set_cookie('token', raw_access_token)
-        # login(request, user)
         rotate_token(request)
         return response
 
 
-class LogoutView(View):
-    client = None
+class RegisterView(View):
+    def get_redirect_back(self):
+        redirect_back = self.request.META.get('HTTP_REFERER', '')
+        if not redirect_back:
+            scheme = 'https' if self.request.is_secure() else 'http'
+            netloc = self.request.get_host()
+            redirect_back = urlunparse((scheme, netloc, '/', '', '', ''))
+        return redirect_back
 
     def get(self, request):
-        is_success = False
-        raw_access_token = request.COOKIES.get('token')
-        if raw_access_token:
-            access_token = URLSafeTimedSerializer(self.client.private_key).loads(raw_access_token)
-            is_success = self.client.logout(access_token)
-        return reverse('home')
+        redirect_back = self.get_redirect_back()
+        host = settings.SSO_REGISTER
+        url = '%s?%s' % (host, urlencode([('next', redirect_back)]))
+        return HttpResponseRedirect(url)
+
+
+class LogoutView(RegisterView):
+    def get(self, request):
+        redirect_back = self.get_redirect_back()
+        host = settings.SSO_LOGOUT
+        url = '%s?%s' % (host, urlencode([('next', redirect_back)]))
+        return HttpResponseRedirect(url)
 
 
 class Client(object):
     login_view = LoginView
     authenticate_view = AuthenticateView
-    register_view = RegisterView
-    logout_view = LogoutView
     backend = "%s.%s" % (ModelBackend.__module__, ModelBackend.__name__)
     user_extra_data = None
 
@@ -129,23 +124,13 @@ class Client(object):
         data = {'access_token': access_token}
         if self.user_extra_data:
             data['extra_data'] = self.user_extra_data
-        user_data = self.consumer.consume('/verify/', data)
+        result = self.consumer.consume('/verify/', data)
         # user = self.build_user(user_data)
 
         user = None
-        is_success = user_data.get('rescode') == res_code['success']
+        is_success = result.get('rescode') == res_code['success']
         if is_success:
-            user_data = user_data.get('data')
-            # user = {
-            #     'userid': user.id,
-            #     'username': user.username,
-            #     'email': user.email,
-            #     'first_name': user.first_name,
-            #     'last_name': user.last_name,
-            #     'is_staff': False,
-            #     'is_superuser': False,
-            #     'is_active': user.is_active,
-            # }
+            user_data = result.get('data')
             user = User()
             user.id = user_data.get('userid')
             user.username = user_data.get('username')
@@ -155,7 +140,6 @@ class Client(object):
             user.is_staff = user_data.get('is_staff')
             user.is_superuser = user_data.get('is_superuser')
             user.is_active = user_data.get('is_active')
-
         return is_success, user
 
     def build_user(self, user_data):

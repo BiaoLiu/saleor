@@ -36,9 +36,9 @@ INTERNAL_IPS = ['127.0.0.1']
 SSO_HOST = 'http://120.27.46.167:8011'
 SSO_SERVER = SSO_HOST + '/server/'
 SSO_REGISTER = SSO_HOST + '/register.html'
+SSO_LOGOUT = SSO_HOST + '/logout.html'
 SSO_PUBLIC_KEY = 'wiWn3Qf8ZZbaB2fr9PIVm0NePsmVG23mFTW0mti6Is0MJe0HhXdLCHnFVw3qHCsa'
 SSO_PRIVATE_KEY = 'omD4PtIjczXouDCqaiHgh2yhSQMcUwdPZyPXUClJ5ig2H2blaWyW4X0GoMeKxSPf'
-
 
 CACHES = {'default': django_cache_url.config()}
 
@@ -47,16 +47,15 @@ if os.environ.get('REDIS_URL'):
         'BACKEND': 'django_redis.cache.RedisCache',
         'LOCATION': os.environ.get('REDIS_URL')}
 
-# DATABASES = {
-#     'default': dj_database_url.config(
-#         default='postgres://postgres:liubiao123456@localhost:5432/saleor',
-#         conn_max_age=600)}
-
 DATABASES = {
     'default': dj_database_url.config(
-        default='postgres://saleor:saleor@localhost:5432/saleor',
+        default='postgres://postgres:liubiao123456@localhost:5432/saleor',
         conn_max_age=600)}
 
+# DATABASES = {
+#     'default': dj_database_url.config(
+#         default='postgres://saleor:saleor@localhost:5432/saleor',
+#         conn_max_age=600)}
 
 TIME_ZONE = 'UTC'
 LANGUAGE_CODE = 'zh-Hans'
@@ -140,13 +139,12 @@ TEMPLATES = [{
         'loaders': loaders,
         'string_if_invalid': '<< MISSING VARIABLE "%s" >>' if DEBUG else ''}}]
 
-
-
 MIDDLEWARE = [
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'saleor.auth.middleware.SSOAuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.locale.LocaleMiddleware',
     'django_babel.middleware.LocaleMiddleware',
@@ -316,7 +314,6 @@ BOOTSTRAP3 = {
 
 TEST_RUNNER = ''
 
-
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 
 # Amazon S3 configuration
@@ -371,7 +368,6 @@ WEBPACK_LOADER = {
             r'.+\.hot-update\.js',
             r'.+\.map']}}
 
-
 LOGOUT_ON_PASSWORD_CHANGE = False
 
 # SEARCH CONFIGURATION
@@ -393,7 +389,6 @@ if ES_URL:
             'hosts': ES_URL
         },
     }
-
 
 GRAPHENE = {
     'MIDDLEWARE': [
